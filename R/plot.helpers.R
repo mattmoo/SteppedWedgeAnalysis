@@ -18,6 +18,8 @@
 #'   generate from sequence.dt if NULL (Default: NULL)
 #' @return A ggplot with data faceted by sequence and cluster.
 #'
+#' @importFrom ggnewscale new_scale_fill
+#'
 #' @export
 faceted.line.plot = function(data.dt,
                              sequence.dt,
@@ -25,7 +27,7 @@ faceted.line.plot = function(data.dt,
                              actual.cluster.dt = NULL,
                              min.time = 0,
                              max.time = NULL) {
-  
+
   #You might need the actual clusters for visualising when they have been permuted.
   if (!is.null(actual.cluster.dt)) {
     actual.cluster.dt = copy(actual.cluster.dt)
@@ -33,23 +35,23 @@ faceted.line.plot = function(data.dt,
     actual.cluster.dt = copy(cluster.dt)
   }
   setnames(actual.cluster.dt, old = 'cluster', new = 'actual.cluster')
-  
+
   #Estimate max.time if it is not provided.
   if(is.null(max.time)) {
-    max.time = 2 * sequence.dt[,max(intervention.time, na.rm = T)] - 
+    max.time = 2 * sequence.dt[,max(intervention.time, na.rm = T)] -
       sequence.dt[intervention.time != max(intervention.time, na.rm = T)][
-        ,max(intervention.time, na.rm = T)] 
+        ,max(intervention.time, na.rm = T)]
   }
-  
+
   #Someone might have already attached sequence and cluster to data.dt, if so,
   #remove them.
   scatter.dt = data.dt[,c(names(data.dt)[!names(data.dt) %in% c(names(sequence.dt),names(cluster.dt))],
                        'cluster'), with = F]
-  
+
   #Hack so that there is no malfunctioning when a cluster has no intervention.
   # sequence.dt = copy(sequence.dt)[is.na(transition.time), transition.time := max(data.dt[,time]*1000) ]
   # sequence.dt = copy(sequence.dt)[is.na(intervention.time), intervention.time := max(data.dt[,time]*1000) ]
-  
+
   #Data for scatter plots
   #Associate participant and cluster
   scatter.dt = merge(scatter.dt, cluster.dt, by = 'cluster')
@@ -71,8 +73,8 @@ faceted.line.plot = function(data.dt,
                            actual.sequence = sequence)],
                      by = 'participant')
   scatter.dt[is.na(actual.intervention), actual.intervention := F]
-  
-  
+
+
   #Sequence-specific intervention time data
   vline.dt = merge(cluster.dt,sequence.dt, by = 'sequence')
 
@@ -80,34 +82,34 @@ faceted.line.plot = function(data.dt,
   vline.dt = vline.dt[!is.na(intervention.time)]
   #If there is not transition.time, assume there was no transition.
   vline.dt[is.na(transition.time), transition.time := intervention.time]
-  
+
   #Generate all period time data
   period.dt = data.table(expand.grid(sequence = sequence.dt[,sequence], intervention.time = sequence.dt[,intervention.time]))
   period.dt = merge(period.dt, vline.dt[,.(sequence, cluster)], by = 'sequence', allow.cartesian = T)
   period.dt = period.dt[!is.na(intervention.time)]
-  
-  
+
+
   output.plot = ggplot2::ggplot() +
     #Background colours marking period
     ggplot2::geom_rect(data = vline.dt,
                        aes(fill = sequence,
-                           xmin = -Inf, 
-                           xmax = transition.time, 
-                           ymin = -Inf, 
+                           xmin = -Inf,
+                           xmax = transition.time,
+                           ymin = -Inf,
                            ymax = Inf),
                        alpha = .05) +
     ggplot2::geom_rect(data = vline.dt,
                        aes(fill = sequence,
-                           xmin = transition.time, 
-                           xmax = intervention.time, 
-                           ymin = -Inf, 
+                           xmin = transition.time,
+                           xmax = intervention.time,
+                           ymin = -Inf,
                            ymax = Inf),
                        alpha = .2) +
     ggplot2::geom_rect(data = vline.dt,
                        aes(fill = sequence,
-                           xmin = intervention.time, 
-                           xmax = Inf, 
-                           ymin = -Inf, 
+                           xmin = intervention.time,
+                           xmax = Inf,
+                           ymin = -Inf,
                            ymax = Inf),
                        alpha = .4) +
     #Lines marking intervention for that sequence
@@ -123,39 +125,39 @@ faceted.line.plot = function(data.dt,
                         alpha = .5,
                         size = .5)  +
     #New theme so that colours for clusters and sequences can be separated
-    scale_fill_brewer(palette="Dark2") +
-    new_scale_fill() +
+    ggplot2::scale_fill_brewer(palette="Dark2") +
+    # new_scale_fill() +
     #Best fit lines
     ggplot2::geom_line(data=scatter.dt,
-                       aes(x=time, 
-                           y=outcome), 
-                       stat = "smooth", 
-                       method = 'loess', 
-                       formula = 'y ~ x', 
-                       alpha = 0.4, 
+                       aes(x=time,
+                           y=outcome),
+                       stat = "smooth",
+                       method = 'loess',
+                       formula = 'y ~ x',
+                       alpha = 0.4,
                        span = 0.2) +
     #Confidence intervals of best fit
     ggplot2::geom_ribbon(data=scatter.dt,
-                         aes(x=time, 
-                             y=outcome, 
-                             fill=actual.sequence), 
-                         stat='smooth', 
-                         method = 'loess', 
-                         se=TRUE, 
-                         alpha=0.3, 
+                         aes(x=time,
+                             y=outcome,
+                             fill=actual.sequence),
+                         stat='smooth',
+                         method = 'loess',
+                         se=TRUE,
+                         alpha=0.3,
                          span = 0.2) +
     #Scatter plot
     ggplot2::geom_point(data=scatter.dt,
                         aes(shape = actual.intervention,
-                            fill=actual.sequence, 
-                            x=time, 
-                            y=outcome), 
-                        alpha=.6, 
+                            fill=actual.sequence,
+                            x=time,
+                            y=outcome),
+                        alpha=.6,
                         size = 2) +
     #Themes
-    scale_fill_brewer(palette="Dark2") +
-    scale_colour_brewer(palette="Dark2") +
-    scale_shape_manual(values = c(25,24)) +
+    ggplot2::scale_fill_brewer(palette="Dark2") +
+    ggplot2::scale_colour_brewer(palette="Dark2") +
+    ggplot2::scale_shape_manual(values = c(25,24)) +
     ggplot2::theme(legend.position="none",
                    panel.grid.minor = element_blank()) +
     ggplot2::scale_x_continuous(breaks = c(min.time,
@@ -164,7 +166,7 @@ faceted.line.plot = function(data.dt,
                                 limits = c(min.time, max.time),
                                 minor_breaks = NULL)+
     ggplot2::facet_grid(sequence + cluster ~ .)
-  
+
   return(output.plot)
 }
 
@@ -186,18 +188,18 @@ faceted.line.plot = function(data.dt,
 #' @return A scatter ggplot
 #'
 #' @export
-icc.simulation.scatter.plot = function(icc.dt, 
-                                       vars.to.plot = NULL, 
-                                       plot.mean = T, 
+icc.simulation.scatter.plot = function(icc.dt,
+                                       vars.to.plot = NULL,
+                                       plot.mean = T,
                                        cols.to.ignore = c('iteration', 'icc')) {
-  
+
   #Auto detect levels to plot against if requested
   if (is.null(vars.to.plot)) {
     vars.to.plot = cols.exceed.level.threshold(icc.dt,
                                                threshold = 1,
                                                cols.to.ignore = c('iteration', 'icc'))
   }
-  
+
   if (length(vars.to.plot) >= 3) {
     stop(paste0('Autodetection of vars.to.plot failed, more than two potential variables to plot against (',
                 vars.to.plot, ').'))
@@ -212,8 +214,8 @@ icc.simulation.scatter.plot = function(icc.dt,
                                                  vars.to.plot = vars.to.plot,
                                                  plot.mean = plot.mean)
   }
-  
-  
+
+
 }
 
 #' Creates a scatter plot of ICC vs one variable, ICC on y-axis.
@@ -227,22 +229,22 @@ icc.simulation.scatter.plot = function(icc.dt,
 #'
 #' @export
 icc.simulation.2D.scatter.plot = function(icc.dt, var.to.plot, plot.mean = T) {
-  
+
   if (plot.mean) {
     plot.dt = icc.dt[,.(icc = mean(icc)), by = var.to.plot]
   } else {
     plot.dt = icc.dt
   }
-  
+
   plot.dt = icc.bin.dt[get(var.to.plot)==1]
-  
-  
+
+
   output.plot = ggplot(plot.dt, aes_string(x = var.to.plot,
-                                           y = icc), 
+                                           y = icc),
                        alpha = 0.15) +
     geom_point()
-  
-  
+
+
   return(output.plot)
 }
 
@@ -256,16 +258,18 @@ icc.simulation.2D.scatter.plot = function(icc.dt, var.to.plot, plot.mean = T) {
 #'   otherwise plot all values individually.
 #' @return A plotly 3D scatter plot
 #'
+#' @import plotly
+#'
 #' @export
 icc.simulation.3D.scatter.plot = function(icc.dt, vars.to.plot, plot.mean = T) {
-  
+
   if (plot.mean) {
     plot.dt = icc.dt[,.(icc = mean(icc)), by = vars.to.plot]
   } else {
     plot.dt = icc.dt
   }
 
-  output.plot = plot_ly(
+  output.plot = plotly::plot_ly(
     plot.dt,
     x = ~ get(vars.to.plot[1]),
     y = ~ get(vars.to.plot[2]),
@@ -273,15 +277,15 @@ icc.simulation.3D.scatter.plot = function(icc.dt, vars.to.plot, plot.mean = T) {
     alpha = 0.8,
     color = ~ icc
   ) %>%
-    layout(
+    plotly::layout(
       scene = list(
         xaxis = list(title = vars.to.plot[1]),
         yaxis = list(title = vars.to.plot[2]),
         zaxis = list(title = "ICC"),
         marker = list(size = 1)
       )) %>%
-    add_markers()
-  
+    plotly::add_markers()
+
   return(output.plot)
 }
 
@@ -301,12 +305,12 @@ icc.model.3D.scatter.plot = function(icc.model,
                                      vars.to.plot = NULL,
                                      x.vals = seq(0, 10, by = 0.1),
                                      y.vals = seq(0, 10, by = 0.1)) {
-  
+
 
   plot.dt = data.table(expand.grid(x = x.vals,
                                    y = y.vals))
   setnames(plot.dt, old = c('x','y'), new = vars.to.plot)
-  
+
   plot.dt[, icc := predict(icc.model, plot.dt)]
 
   output.plot = icc.simulation.3D.scatter.plot(icc.dt = plot.dt,

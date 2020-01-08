@@ -10,12 +10,12 @@
 generate.perm.dt = function(cluster.dt, max.r = 1000) {
   #Find out roughly how many permutations are possible.
   max.poss.r = factorial(nrow(cluster.dt))
-  
+
   #Adjust max iterations if necessary.
   if (max.poss.r < max.r) {
     max.r = max.poss.r
   }
-  
+
   #If there aren't heaps more possible iterations than the number requested,
   if (max.r*10 > max.poss.r) {
     #Get all permutations
@@ -30,7 +30,7 @@ generate.perm.dt = function(cluster.dt, max.r = 1000) {
   #Now clusters are rows, with each permutation column containing sequences.
   perm.dt = cbind(data.table(cluster = cluster.dt$cluster), transpose(perm.dt))
   setkey(perm.dt, cluster)
-  
+
   return(perm.dt)
 }
 
@@ -52,64 +52,64 @@ test.wilcox.dt = function(data.dt,
                           two.sided = T,
                           tie.correction = NULL,
                           sort.input = F) {
-  
+
   #What proportion of values should be unique to apply tie correction (if not
   #explicitly enabled/disabled)
   tie.correction.threshold = .9
-  
+
   t = Sys.time()
-  
+
   if (sort.input) {
     setorder(data.dt, outcome)
   }
   if (is.null(tie.correction)) {
     tie.correction = length(data.dt[,unique(outcome)]) < nrow(data.dt)*tie.correction.threshold
   }
-  
+
   # message(paste('t0 = ', Sys.time()-t ))
-  
+
   #Do WMW
   #Assign ranks to outcomes
   data.dt[, rank := frank(outcome, ties.method = 'average')]
-  
-  
+
+
   #Make a data.table with rank sums and n per group.
   wmw.dt = data.dt[,.(R = sum(rank), n = .N), by = condition]
-  
+
   #Calculate U for each group
   data.table::set(x = wmw.dt,
                   j = 'u',
                   value = wmw.dt[,R - (n*(n+1))/2])
-  
+
   #Return if no valid comparison.
   if (wmw.dt[,.N] == 1) {
     return(NULL)
   }
-  
+
   #Get minimum U, n for each group, and also theoretical mean.
   z.dt = cbind(wmw.dt[u == min(u), .(n.a=as.numeric(n), u = u)],
                wmw.dt[u == max(u), .(n.b=as.numeric(n))],
                wmw.dt[,.(m.u = prod(n)/2)])
   # print(z.dt)
-  
+
   #Calculate theoretical SD, correcting for errors if requested.
   if (tie.correction == F) {
     z.dt[,sd.u := wmw.dt[,sqrt(prod(n)*(sum(n)+1)/12)]]
   } else {
     z.dt[,sd.u := sqrt((n.a*n.b/((n.a+n.b)*(n.a+n.b-1))) * ((((n.a+n.b)^3-(n.a+n.b))/12)-sum(data.dt[,(.N^3-.N)/12, by = outcome])))]
   }
-  
-  
+
+
   #Calculate z score for U
   data.table::set(x = z.dt,
                   j = 'z',
                   value = z.dt[,(u - m.u)/sd.u])
-  
-  
+
+
   data.table::set(x = z.dt,
                   j = 'p',
                   value = z.dt[,pnorm(z) * (1+two.sided)])
-  
+
   return(z.dt)
 }
 
@@ -125,7 +125,7 @@ test.wilcox.dt = function(data.dt,
 #'
 #' @export
 test.f.effect.dt = function(data.dt) {
-  
+
   #Get summary of variable for each cluster
   cluster.summ.dt = data.dt[, .(cp.mean = mean(outcome, na.rm = T)),
                             by = .(condition, cluster)]
@@ -138,30 +138,30 @@ test.f.effect.dt = function(data.dt) {
     var = var(cp.mean, na.rm = T)
   ),
   by = .(condition)]
-  
-  
+
+
   if (slice.long.dt[,.N] == 1) {
     return(NULL)
   }
-  
+
   #Make condition numeric
   slice.long.dt[,condition.num := factor(as.numeric(condition))]
-  
+
   #Cast to wide to compare two conditions
   summary.dt = dcast(data = slice.long.dt,
                      formula = . ~ condition.num,
                      value.var = c('mean','n','var'))
   summary.dt[,`.` := NULL]
-  
+
   #Remove periods with no comparison
   summary.dt = summary.dt[!is.na(mean_1) & !is.na(mean_2)]
-  
+
   #Get difference in means and variance weight
   summary.dt[, diff.mean := mean_2 - mean_1]
   summary.dt[, wgt :=
                ((((n_1 - 1) * var_1 + (n_2 - 1) * var_2) /
                    (n_1 + n_2 - 2)) * (1 / n_1 + 1 / n_2)) ^ -1]
-  
+
 }
 
 
@@ -174,6 +174,8 @@ test.f.effect.dt = function(data.dt) {
 #'   columns sequence, transition.time, and intervention.time.
 #' @return A data.table with period column assigned. This will be done by
 #'   reference for speed, so you don't need to use the return value.
+#'
+#' @export
 cut.data.dt.into.periods = function(data.dt, sequence.dt) {
   #Stick periods on each observation.
   sequence.dt = sequence.dt[!is.na(intervention.time)]
@@ -196,21 +198,24 @@ cut.data.dt.into.periods = function(data.dt, sequence.dt) {
 #'   sequence, with columns cluster and sequence.
 #' @param exclude.transition boolean, should the result exclude data points from
 #'   the transition period? (Default = T)
+#' @param cut.labels Character vector of labels for control, transition, and
+#'   intervention periods. Probably don't change this (Default:
+#'   c('control','transition','intervention'))
 #' @return A data.table with the statistic value at each permutation (with zero
 #'   as the unpermuted comparison).
 #' @export
-cut.data.dt.into.conditions = function(data.dt, 
-                                       cluster.dt, 
-                                       sequence.dt, 
-                                       exclude.transition = T, 
+cut.data.dt.into.conditions = function(data.dt,
+                                       cluster.dt,
+                                       sequence.dt,
+                                       exclude.transition = T,
                                        cut.labels = c('control',
                                                       'transition',
                                                       'intervention')) {
-  
+
   #Remove sequence and cluster columns to be replaced if present.
   data.dt = data.dt[,c(names(data.dt)[!names(data.dt) %in% c(names(sequence.dt),names(cluster.dt))],
                        'cluster'), with = F]
-  
+
   #Hack so that there is no malfunctioning when a cluster has no intervention.
   sequence.dt = copy(sequence.dt)[is.na(transition.time), transition.time := max(data.dt[,time]*1000) ]
   sequence.dt = copy(sequence.dt)[is.na(intervention.time), intervention.time := max(data.dt[,time]*1000) ]
@@ -238,12 +243,12 @@ cut.data.dt.into.conditions = function(data.dt,
   #                       labels = cut.labels
   #                     ),
   #                     by = c('cluster')]
-  
+
   if (exclude.transition) {
     cut.data.dt = cut.data.dt[condition != "transition"]
     cut.data.dt[,condition := droplevels(condition)]
   }
-  
+
   return(cut.data.dt)
 }
 
@@ -263,6 +268,7 @@ cut.data.dt.into.conditions = function(data.dt,
 #' @param cut.labels What should the labels be? (Default:
 #'   c('control','transition','intervention'))
 #' @return List of conditions in the same order as presented.
+#' @export
 cut.time.into.conditions = function(time,
                                     transition.time,
                                     intervention.time,
@@ -271,20 +277,20 @@ cut.time.into.conditions = function(time,
                                     cut.labels = c('control',
                                                    'transition',
                                                    'intervention')) {
-  
+
   #Cut on the time column to assign groups.
   cut.breaks = c(time.start,
                  transition.time,
                  intervention.time,
                  time.end)
-  
+
   result.dt = data.table(time = time,
                          condition = cut.labels[1])
   result.dt[time >= transition.time, condition := cut.labels[2]]
   result.dt[time >= intervention.time, condition := cut.labels[3]]
   result.dt[, condition := as.factor(condition)]
-  
-  
+
+
   return(result.dt$condition)
 }
 
@@ -312,7 +318,8 @@ cut.time.into.conditions = function(time,
 #' @param progress.bar Should be a text progress bar if you want one.
 #' @return A data.table with the stat separated by period and permutation
 #'   number.
-#'   
+#'
+#' @export
 perform.permutation.step = function(perm.ind,
                                     perm.dt,
                                     data.dt,
@@ -322,8 +329,8 @@ perform.permutation.step = function(perm.ind,
                                     comparison.within = c('cluster','period')[1],
                                     stat.func = c(test.wilcox.dt,test.f.effect.dt)[[1]],
                                     progress.bar = NULL) {
-  
-  
+
+
   #Permute the data, permutation 0 is the actual data.
   if (perm.ind==0) {
     perm.data.dt = copy(data.dt)
@@ -331,35 +338,105 @@ perform.permutation.step = function(perm.ind,
     perm.data.dt = permute.clusters.to.sequence(perm.ind, perm.dt, hypothetical.data.dt)
   }
   perm.data.dt = cut.data.dt.into.conditions(perm.data.dt, cluster.dt, sequence.dt)
-  
+
   #Remove rows with no comparison.
-  
+
   #Put the statistics in a table for later binding.
   if (comparison.within == 'cluster') {
     #########################################
     #Only data.table optimised wmw.u
     perm.stat.dt = stat.func(perm.data.dt)[,perm.num := perm.ind]
   } else if (comparison.within == 'period') {
-    
+
     # data.dt = remove.rows.with.no.comparison(data.dt, cluster.dt, sequence.dt, remove.type = 'period')
     #Get a data.table out with one statistic per period.
     perm.stat.dt = perm.data.dt[,stat.func(copy(.SD)),
                                 .SDcols=c('condition','outcome','period','cluster'),
                                 by=period][
                                   ,perm.num := perm.ind]
-    
+
   } else {
     stop(paste0('Do not recognise within ', comparison.within, ' comparison.'))
   }
-  
+
   if (!is.null(progress.bar)) {
     update.progress.bar(progress.bar = progress.bar,
                         index = perm.ind,
                         max.r = ncol(perm.dt)-1)
   }
-  
-  
+
+
   return(perm.stat.dt)
+}
+
+#' Precalculate the intervention and control groups for each site for each
+#' cluster (i.e. sequence). This could fail for very large data sets.
+#'
+#' @param data.dt data.table with columns participant, cluster, time, and
+#'   outcome. Outcome should be continuous.
+#' @param cluster.dt data.table with the correspondence between cluster and
+#'   sequence, with columns cluster and sequence.
+#' @param sequence.dt data.table with information about the sequences, with
+#'   columns sequence, transition.time, and intervention.time.
+#' @param progress.bar Display a progress bar. A little bit of overhead.
+#'   Completion times will be echoed regardless.
+#' @param ... Passed on to the test
+#' @return A data.table with a row for each combination of cluster and sequence,
+#'   and a data.table of the participants for that cluster assigned on that
+#'   basis.
+#' @export
+
+generate.hypothetical.data.dt = function(data.dt,
+                                         cluster.dt,
+                                         sequence.dt,
+                                         progress.bar = T) {
+
+
+  hypothetical.data.dt = data.table::data.table(expand.grid(sequence = cluster.dt[,levels(sequence)],
+                                                            cluster = cluster.dt[,levels(cluster)]))
+  #This could be vectorised, but won't be the most compute-heavy part anyway.
+
+  #Iterate through the different assignments of site to clusters, making tables of
+  #what the groups would look like.
+
+  #Make a wee progress bar.
+  message(paste0("Calculating ", nrow(hypothetical.data.dt), " hypothetical site data tables..."))
+  if (progress.bar == T) {
+    pb = txtProgressBar(style = 3, char = '|')
+  }
+  t = Sys.time()
+
+  for (row.ind in 1L:nrow(hypothetical.data.dt)) {
+    #Get data from a single site, for which to calculate who would be in what
+    #condition depending on what sequence it were assigned to.
+    sequence.cluster.dt = data.dt[cluster == hypothetical.data.dt[row.ind, cluster],]
+
+    condition.vector = cut.time.into.conditions(time = sequence.cluster.dt[,time],
+                                                transition.time = sequence.dt[sequence == hypothetical.data.dt[row.ind, sequence]][,c(transition.time)],
+                                                intervention.time = sequence.dt[sequence == hypothetical.data.dt[row.ind, sequence]][,c(intervention.time)])
+
+    sequence.cluster.dt[,condition := condition.vector]
+
+    #Add that data.table to the hypothetical data.
+    data.table::set(x = hypothetical.data.dt,
+                    i = row.ind,
+                    j = "data.dt",
+                    value = list(list(sequence.cluster.dt)))
+
+    #Update progress
+    if (progress.bar == T) {
+      update.progress.bar(progress.bar = pb,
+                          index = row.ind,
+                          max.r = nrow(hypothetical.data.dt))
+      # setTxtProgressBar(pb, row.ind/nrow(hypothetical.data.dt))
+    }
+  }
+  #Close progress bar, get time elapsed
+  elapsed.time.message(start.time = t,
+                       n.iterations = nrow(hypothetical.data.dt),
+                       progress.bar = pb)
+
+  return(hypothetical.data.dt)
 }
 
 
@@ -370,10 +447,13 @@ perform.permutation.step = function(perm.ind,
 #'
 #' @param data.dt data.table with columns participant, cluster, time, and
 #'   outcome. Outcome should be continuous.
-#' @param sequence.dt data.table with information about the sequences, with
-#'   columns sequence, transition.time, and intervention.time.
 #' @param cluster.dt data.table with the correspondence between cluster and
 #'   sequence, with columns cluster and sequence.
+#' @param sequence.dt data.table with information about the sequences, with
+#'   columns sequence, transition.time, and intervention.time.
+#' @param hypothetical.data.dt Precalculated table of how outcomes would be
+#'   assigned to groups if clusters were in each different sequence, will be
+#'   generated if NULL (Default: NULL)
 #' @param perm.dt Precalculated table of how to permute clusters to sequences,
 #'   with first column being clusters, and then one column for each permutation
 #'   after that.
@@ -396,6 +476,7 @@ generate.stat.dt = function(data.dt,
                             cluster.dt,
                             sequence.dt,
                             comparison.within = c('cluster','period')[1],
+                            hypothetical.data.dt = NULL,
                             perm.dt = NULL,
                             max.r = 1000,
                             sort.input = T,
@@ -403,58 +484,21 @@ generate.stat.dt = function(data.dt,
                             stat.func = c(test.wilcox.dt,test.f.effect.dt)[[1]],
                             progress.bar = T) {
 
-  #It will probably streamline the calculations if I precalculate the intervention
-  #and control groups for each site for each cluster (i.e. sequence).
-  #This could fail for very large data sets.
-  hypothetical.data.dt = data.table::data.table(expand.grid(sequence = cluster.dt[,levels(sequence)],
-                                                            cluster = cluster.dt[,levels(cluster)]))
-  #This could be vectorised, but won't be the most compute-heavy part anyway.
-  
   if (sort.input == T) {
     setorder(data.dt, outcome)
   }
-  
-  #Iterate through the different assignments of site to clusters, making tables of
-  #what the groups would look like.
-  
-  #Make a wee progress bar.
-  message(paste0("Calculating ", nrow(hypothetical.data.dt), " hypothetical site data tables..."))
-  if (progress.bar == T) {
-    pb = txtProgressBar(style = 3, char = '|')
+
+  #It will probably streamline the calculations if I precalculate the intervention
+  #and control groups for each site for each cluster (i.e. sequence).
+  #This could fail for very large data sets.
+  #This could be vectorised, but won't be the most compute-heavy part anyway.
+  if (is.null(hypothetical.data.dt)) {
+    hypothetical.data.dt = generate.hypothetical.data.dt(data.dt,
+                                                         cluster.dt,
+                                                         sequence.dt,
+                                                         progress.bar = T)
   }
-  t = Sys.time()
-  
-  for (row.ind in 1L:nrow(hypothetical.data.dt)) {
-    #Get data from a single site, for which to calculate who would be in what
-    #condition depending on what sequence it were assigned to.
-    sequence.cluster.dt = data.dt[cluster == hypothetical.data.dt[row.ind, cluster],]
-    
-    condition.vector = cut.time.into.conditions(time = sequence.cluster.dt[,time],
-                                                transition.time = sequence.dt[sequence == hypothetical.data.dt[row.ind, sequence]][,c(transition.time)],
-                                                intervention.time = sequence.dt[sequence == hypothetical.data.dt[row.ind, sequence]][,c(intervention.time)])
-    
-    sequence.cluster.dt[,condition := condition.vector]
-    
-    #Add that data.table to the hypothetical data.
-    data.table::set(x = hypothetical.data.dt,
-                    i = row.ind,
-                    j = "data.dt",
-                    value = list(list(sequence.cluster.dt)))
-    
-    #Update progress
-    if (progress.bar == T) {
-      update.progress.bar(progress.bar = pb,
-                          index = row.ind,
-                          max.r = nrow(hypothetical.data.dt))
-      # setTxtProgressBar(pb, row.ind/nrow(hypothetical.data.dt))
-    }
-  }
-  #Close progress bar, get time elapsed
-  elapsed.time.message(start.time = t,
-                       n.iterations = nrow(hypothetical.data.dt),
-                       progress.bar = pb)
-  
-  
+
   #Now let's figure out how to permute clusters to sequences. You might provide
   #one if there is already one generated.
   perm.dt = NULL
@@ -471,19 +515,19 @@ generate.stat.dt = function(data.dt,
       max.r = (ncol(perm.dt)-1)
     }
   }
- 
+
   #Make a wee progress bar.
   message(paste0("Calculating ", max.r, " permutations..."))
-  
+
   if (progress.bar == T) {
     pb = txtProgressBar(style = 3, char = '|')
   } else {
     pb = NULL
   }
   t = Sys.time()
-  
+
   #Apply the permutation step, parallel if available.
-  stat.dt = rbindlist(mclapply(0L:max.r, 
+  stat.dt = rbindlist(mclapply(0L:max.r,
                                function(perm.ind)
                                  perform.permutation.step(
                                    perm.ind,
@@ -496,12 +540,12 @@ generate.stat.dt = function(data.dt,
                                    stat.func = stat.func,
                                    progress.bar = pb
     )))
-  
+
   #Close progress bar, get time elapsed
   elapsed.time.message(start.time = t,
                        n.iterations = ncol(perm.dt),
                        progress.bar = pb)
-  
+
   return(stat.dt)
 }
 
@@ -529,11 +573,11 @@ calculate.p.from.stat.dt = function(stat.dt) {
   }
 
   if (!is.null(wgt.col)) {
-    stat.vector = stat.dt[,weighted.mean(x = get(stat.col), 
-                                         w = get(wgt.col)), 
+    stat.vector = stat.dt[,weighted.mean(x = get(stat.col),
+                                         w = get(wgt.col)),
                           by = perm.num][,V1]
   } else {
-    stat.vector = stat.dt[,mean(get(stat.col)), 
+    stat.vector = stat.dt[,mean(get(stat.col)),
                           by = perm.num][,V1]
   }
   sum(abs(stat.vector)>=abs(stat.vector[1]))/length(stat.vector)
@@ -556,11 +600,11 @@ calculate.p.from.stat.dt = function(stat.dt) {
 #'   the transition period? (Default = T)
 #' @return A data.table with permuted data and group assignments.
 #' @export
-permute.clusters.to.sequence = function(perm.ind, 
-                                        perm.dt, 
-                                        hypothetical.data.dt, 
+permute.clusters.to.sequence = function(perm.ind,
+                                        perm.dt,
+                                        hypothetical.data.dt,
                                         exclude.transition = T) {
-  
+
   #Rename the relevant permutation's column to pick it out.
   old.col.name = names(perm.dt)[perm.ind+1]
   data.table::setnames(x = perm.dt,
@@ -574,17 +618,17 @@ permute.clusters.to.sequence = function(perm.ind,
           by.x = c("cluster", "sequence.perm"),
           by.y = c("cluster", "sequence")
     )$data.dt)
-  
+
   if (exclude.transition) {
     perm.data.dt = perm.data.dt[condition != "transition"]
   }
-  
+
   #Reset name to what it was before
   data.table::setnames(x = perm.dt,
                        old = perm.ind+1,
                        new = old.col.name)
 
-  
+
   return(perm.data.dt)
 }
 
@@ -607,20 +651,20 @@ remove.rows.with.no.comparison = function(data.dt,
                                           cluster.dt = NULL,
                                           sequence.dt = NULL,
                                           remove.type = c('cluster', 'period')[1]) {
-  
+
   if (!'condition' %in% names(data.dt) & !is.null(cluster.dt) & !is.null(sequence.dt)) {
 
     data.dt = cut.data.dt.into.conditions(data.dt = data.dt,
                                           cluster.dt = cluster.dt,
-                                          sequence.dt = sequence.dt)    
+                                          sequence.dt = sequence.dt)
 
   } else {
     if (!'condition' %in% names(data.dt)) {
       stop('Need to have conditions attached to data.dt to see what conditions participants are in.')
     }
   }
-  
-  
+
+
   data.dt = data.dt[get(remove.type) %in% data.dt[,.SD[,.N],by = .(remove.type = get(remove.type), condition)][,.SD[,.N, by = .(remove.type)]][N>1,remove.type]]
   return(data.dt)
 }
@@ -629,7 +673,7 @@ remove.rows.with.no.comparison = function(data.dt,
 #FROM THOMPSON, DAVEY ET AL 2018
 
 f.effect.TD = function(data.dt, cluster.dt){
-  
+
   #Summarise for each condition, period, and cluster
   cpsummary.dt = data.dt[,.(summary = mean(outcome)), by = c('condition','period','cluster')]
 
@@ -649,16 +693,16 @@ f.effect.TD = function(data.dt, cluster.dt){
                     v.names = c("mean", "n", "var"),
                     idvar = c("period"),
                     timevar = "condition")
-  
+
   #calculate difference
   slices$diff = slices$mean.intervention - slices$mean.control
-  
+
   #Calculate a weight assuming the same variance in both arms
   slices$wgt =
-    ((((slices$n.control - 1) * slices$var.control + 
-         (slices$n.intervention - 1) *  slices$var.intervention) / 
+    ((((slices$n.control - 1) * slices$var.control +
+         (slices$n.intervention - 1) *  slices$var.intervention) /
         (slices$n.control + slices$n.intervention - 2)) * (1 / slices$n.control + 1 /slices$n.intervention)) ^ -1
-  
+
   weighted.mean(slices$diff, slices$wgt, na.rm = TRUE)
 }
 
@@ -672,7 +716,7 @@ f.effect.TD = function(data.dt, cluster.dt){
 #'   values calculated (Default: 'value')
 #' @return Numeric ICC
 #' @export
-calculate.icc = function(data.dt, 
+calculate.icc = function(data.dt,
                          mode = c('binary','continuous','auto')[3],
                          return.type = c('value', 'variables')[1]) {
 
@@ -684,7 +728,7 @@ calculate.icc = function(data.dt,
       mode = 'continuous'
     }
   }
-  
+
 
   if (mode == 'continuous') {
     summary_aov = summary(aov(outcome ~ cluster,data=data.dt))
@@ -700,23 +744,23 @@ calculate.icc = function(data.dt,
     }
     return(summary_aov[[1]][1,2]/sum(summary_aov[[1]][,2]))
   } else if (mode == 'binary') {
-    
+
     #From iccbin package
-    
+
     # Number off clusters
     k = length(unique(data.dt[,cluster]))
     # Number of observations in each cluster
     ni = as.vector(table(data.dt[,cluster]))
     # Total number of observations
     N = sum(ni)
-    
+
     n0 = (1/(k - 1))*(N - sum((ni^2)/N))
     yi = aggregate(data.dt[,outcome], by = list(data.dt[,cluster]), sum)[ , 2]
     yisq = yi^2
     msb = (1/(k - 1))*(sum(yisq/ni) - (1/N)*(sum(yi))^2)
     msw = (1/(N - k))*(sum(yi) - sum(yisq/ni))
     rho = (msb - msw)/(msb + (n0 - 1)*msw)
-    
+
     if (return.type == 'variables') {
       return(list(rho = rho,
                   k = k,
@@ -730,7 +774,7 @@ calculate.icc = function(data.dt,
     } else {
       return(rho)
     }
-    
+
   }
 }
 

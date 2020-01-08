@@ -25,6 +25,10 @@ columns sequence, transition.time, and intervention.time.}
 
 \item{exclude.transition}{boolean, should the result exclude data points from
 the transition period? (Default = T)}
+
+\item{cut.labels}{Character vector of labels for control, transition, and
+intervention periods. Probably don't change this (Default:
+c('control','transition','intervention'))}
 }
 \value{
 A data.table with the statistic value at each permutation (with zero

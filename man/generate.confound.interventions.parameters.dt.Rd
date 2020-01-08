@@ -20,7 +20,7 @@ generate.confound.interventions.parameters.dt(
 )
 }
 \arguments{
-\item{cluster.dt}{Earliest time of a random effect (Default: 0)}
+\item{cluster.dt}{A study info data.table, containing data about clusters.}
 
 \item{min.time}{Earliest time of a random effect (Default: 0)}
 

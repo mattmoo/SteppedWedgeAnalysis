@@ -10,6 +10,14 @@
 #' @param transition.end.time When does the effect end, will not be applied
 #'   if NA. (Default: 0)
 #' @import data.table
+#' @import ggplot2
+#' @import ggnewscale
+#' @importFrom graphics layout
+#' @importFrom stats aggregate aov as.formula coef
+#'           effects lm loess pnorm predict reshape
+#'           rnorm time var weighted.mean
+#' @importFrom utils setTxtProgressBar txtProgressBar
+
 #' @return A numeric vector containing the effect at each provided time point.
 #' @export
 generate.linear.effect = function(time.vector,
@@ -156,6 +164,10 @@ generate.individual.noise = function(time.vector, noise.sd = 0.5) {
 #' @param cycle.period.sd.proportion.of.mean The variance in the cycle period
 #'   between clusters as a multiple of mean. Will override cycle.period.sd,
 #'   disabled by default.
+#' @param min.time Minimum time value (Default: 0)
+#' @param max.time Maximum time value, if NA will be calculated from
+#'   sequence.dt, by assuming equal period lengths, which may not be correct
+#'   (Default: NA)
 #' @param n.to.generate Integer how many different effects to generate. If more
 #'   than one, an integer column will be added (sim.number) to delineate.
 #'   (Default: 1)
@@ -197,6 +209,9 @@ generate.sim.parameters.dt = function(cluster.dt,
                                       cycle.period.sd = 0,
                                       cycle.period.sd.proportion.of.mean = NA,
 
+                                      min.time = 0,
+                                      max.time = NA,
+
                                       #How many sim parameters to generate?
                                       n.to.generate = 1) {
 
@@ -204,6 +219,11 @@ generate.sim.parameters.dt = function(cluster.dt,
   generate.single.sim.parameters.dt = function(sim.number = NULL) {
 
     sim.parameters.dt = copy(cluster.dt)
+
+    #Calculate max.time if it's NA.
+    if (is.na(max.time)) {
+      max.time = sequence.dt[.N, intervention.time] + sequence.dt[.N, intervention.time] - sequence.dt[.N-1, intervention.time]
+    }
 
     #Calculate multiples if present.
     if (!is.na(ppt.per.unit.time.sd.proportion.of.mean)) {
@@ -294,7 +314,7 @@ generate.sim.parameters.dt = function(cluster.dt,
 #' interventions or such). There can be a potentially random number of
 #' confounding interventions.
 #'
-#' @param cluster.dt Earliest time of a random effect (Default: 0)
+#' @param cluster.dt A study info data.table, containing data about clusters.
 #' @param min.time Earliest time of a random effect (Default: 0)
 #' @param max.time Latest time of a random effect (Default: 0)
 #' @param n.confound.intervention.mean How many random effects total, mean parameter for
@@ -324,7 +344,6 @@ generate.confound.interventions.parameters.dt = function(cluster.dt,
                                                          confound.intervention.sd = 0.1,
 
                                                          n.to.generate = 1) {
-
 
   #Function so that the generation of confounding effect parameters can be lapply.
   generate.single.confound.interventions.parameters.dt = function(sim.number = NULL) {
@@ -363,9 +382,10 @@ generate.confound.interventions.parameters.dt = function(cluster.dt,
 
     return(confound.interventions.parameters.dt)
   }
+
   if (n.to.generate > 1) {
     confound.interventions.parameters.dt = rbindlist(l = mclapply(X = 1:n.to.generate,
-                                               FUN =generate.single.confound.interventions.parameters.dt))
+                                               FUN = generate.single.confound.interventions.parameters.dt))
   } else {
     confound.interventions.parameters.dt = generate.single.confound.interventions.parameters.dt()
   }

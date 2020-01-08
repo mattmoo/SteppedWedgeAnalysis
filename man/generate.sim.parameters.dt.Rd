@@ -34,6 +34,8 @@ generate.sim.parameters.dt(
   cycle.period.mean = 20,
   cycle.period.sd = 0,
   cycle.period.sd.proportion.of.mean = NA,
+  min.time = 0,
+  max.time = NA,
   n.to.generate = 1
 )
 }
@@ -117,6 +119,12 @@ disabled by default.}
 \item{cycle.period.sd.proportion.of.mean}{The variance in the cycle period
 between clusters as a multiple of mean. Will override cycle.period.sd,
 disabled by default.}
+
+\item{min.time}{Minimum time value (Default: 0)}
+
+\item{max.time}{Maximum time value, if NA will be calculated from
+sequence.dt, by assuming equal period lengths, which may not be correct
+(Default: NA)}
 
 \item{n.to.generate}{Integer how many different effects to generate. If more
 than one, an integer column will be added (sim.number) to delineate.

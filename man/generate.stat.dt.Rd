@@ -10,6 +10,7 @@ generate.stat.dt(
   cluster.dt,
   sequence.dt,
   comparison.within = c("cluster", "period")[1],
+  hypothetical.data.dt = NULL,
   perm.dt = NULL,
   max.r = 1000,
   sort.input = T,
@@ -30,6 +31,10 @@ columns sequence, transition.time, and intervention.time.}
 
 \item{comparison.within}{Will comparisons be within cluster (i.e. between
 period), or within period (i.e. within cluster).}
+
+\item{hypothetical.data.dt}{Precalculated table of how outcomes would be
+assigned to groups if clusters were in each different sequence, will be
+generated if NULL (Default: NULL)}
 
 \item{perm.dt}{Precalculated table of how to permute clusters to sequences,
 with first column being clusters, and then one column for each permutation
