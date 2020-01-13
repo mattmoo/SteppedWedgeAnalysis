@@ -1,0 +1,16 @@
+citHeader("To cite SteppedWedgeAnalysis in publications use:")
+
+citEntry(
+  entry    = "Article",
+  title    = "SteppedWedgeAnalysis: Simulation  and Analysis of Stepped Wedge Data",
+  author   = "Moore, Matthew R",
+  journal  = ,
+  year     = 2020,
+  volume   = ,
+  number   = ,
+  pages    = ,
+  url      = ,
+  textVersion = paste(
+    "0.0.0.9000"
+  )
+)

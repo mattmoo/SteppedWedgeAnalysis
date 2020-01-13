@@ -31,8 +31,7 @@ intervention periods. Probably don't change this (Default:
 c('control','transition','intervention'))}
 }
 \value{
-A data.table with the statistic value at each permutation (with zero
-  as the unpermuted comparison).
+The input data.dt with conditions attached.
 }
 \description{
 Assigns control, transition, and intervention condition column on the basis

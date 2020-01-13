@@ -201,8 +201,7 @@ cut.data.dt.into.periods = function(data.dt, sequence.dt) {
 #' @param cut.labels Character vector of labels for control, transition, and
 #'   intervention periods. Probably don't change this (Default:
 #'   c('control','transition','intervention'))
-#' @return A data.table with the statistic value at each permutation (with zero
-#'   as the unpermuted comparison).
+#' @return The input data.dt with conditions attached.
 #' @export
 cut.data.dt.into.conditions = function(data.dt,
                                        cluster.dt,
@@ -330,7 +329,6 @@ perform.permutation.step = function(perm.ind,
                                     stat.func = c(test.wilcox.dt,test.f.effect.dt)[[1]],
                                     progress.bar = NULL) {
 
-
   #Permute the data, permutation 0 is the actual data.
   if (perm.ind==0) {
     perm.data.dt = copy(data.dt)
@@ -340,6 +338,7 @@ perform.permutation.step = function(perm.ind,
   perm.data.dt = cut.data.dt.into.conditions(perm.data.dt, cluster.dt, sequence.dt)
 
   #Remove rows with no comparison.
+  # perm.data.dt = remove.rows.with.no.comparison(perm.data.dt, cluster.dt, sequence.dt, remove.type = comparison.within)
 
   #Put the statistics in a table for later binding.
   if (comparison.within == 'cluster') {
@@ -348,7 +347,6 @@ perform.permutation.step = function(perm.ind,
     perm.stat.dt = stat.func(perm.data.dt)[,perm.num := perm.ind]
   } else if (comparison.within == 'period') {
 
-    # data.dt = remove.rows.with.no.comparison(data.dt, cluster.dt, sequence.dt, remove.type = 'period')
     #Get a data.table out with one statistic per period.
     perm.stat.dt = perm.data.dt[,stat.func(copy(.SD)),
                                 .SDcols=c('condition','outcome','period','cluster'),

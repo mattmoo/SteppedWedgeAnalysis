@@ -1,5 +1,5 @@
 Package: SteppedWedgeAnalysis
-Title: Simulation of Stepped Wedge Data and Analysis
+Title: Simulation  and Analysis of Stepped Wedge Data
 Version: 0.0.0.9000
 Authors@R: 
     person(given = "Matthew",
@@ -11,6 +11,7 @@ Description: Can simulate stepped wedge data and then analyse it. Mainly to inve
 License: CC-SA-BY
 Encoding: UTF-8
 LazyData: true
+Year: 2020
 RoxygenNote: 7.0.2
 Imports:
 	data.table (>= 1.12.2),
